@@ -1,7 +1,7 @@
 ---
-meta-title: Create simple maps in R with ggplot and sf
-meta-author: Amanda Devine
-meta-date: 29 April 2020
+title: Create simple maps in R with ggplot and sf
+author: Amanda Devine
+date: 29 April 2020
 output: 
     html_notebook:
         toc: true
@@ -11,51 +11,60 @@ output:
         theme: cosmo
 ---
 
-# Create simple maps in R with ggplot and sf
+This R Notebook demonstrates how to work with the R packages `sf` and `ggplot2` to create basic maps. For this demo, we will create two maps showing the distribution of yellowjacket occurrences across the contiguous 48 United States. 
 
-This R Notebook demonstrates how to work with the R packages `sf` and `ggplot2` to create basic maps. 
+Disclaimer: I'm still very new to working with geospatial data. Take this demo with a grain of salt, and consult more detailed tutorials and GIS courses to get a more thorough udnerstanding of principles. My aim with this demo is to demonstrate two common tasks I've encountered working with museum data: plotting latitude/longitude points on a map, and creating heatmaps to show how counts vary across states or countries.
 
 ## Import packages
 
 ```{r}
 library(tidyverse)
-library(data.table)
-library(sf) # Classes and functions for vector mapping data
+library(data.table)     # Read/write large tabular data files
+library(sf)             # Classes and functions for vector mapping data
 ```
 
-## Coordinate Reference Systems (CRS)
+## Geographic data and R objects
 
-There are no perfect ways of representing the 3D spherical Earth as a 2D image. There are different **coordinate reference systems (CRS)** that define how 3D coordinates are mapped to a 2D representation. For this demo, we will use a CRS called **WGS 84**. We need to make sure that all our spatial data are using the WGS 84 CRS, or else different datasets will not align properly.
+For this demo, we will be working with two geographic datasets: a shapefile containing data on the US states, and a CSV containing georeferenced occurrence data for yellowjackets in the United States.
+
+A **shapefile** is a geospatial vector data format commonly used with GIS software (like ArcGIS). For this demo, we can think of it as a set of related files containing data on set of spatial features (geographic places) and their associated geometrical representations (points, lines, polygons). 
+
+There are different packages and different R objects for working with geospatial data. We will be using a package called `sf`, which creates a type of R object called a **simple feature** object. This object acts much like a data frame, where every row contains data on a geographic place (or **feature**). In addition, each row has an associated **geometry**, which contains the geometric representation of that place on a map (as a point, line, or polygon). Simple feature objects can be read into R from existing geospatial data sources (like shapefiles), or created from other file types containing geospatial data (like CSV files).
+
+To plot our maps, we will use the `ggplot2`package and its built-in geom `geom_sf()`. This geom is designed to plot sf object data.
+
+### Coordinate Reference Systems (CRS)
+
+**Coordinate reference systems (CRS)** are systems of equations and visual representations cartographers use to represent the 3D spherical Earth as 2D images. For this demo, we will use a CRS called **WGS 84**. We need to make sure that all our spatial data are using the WGS 84 CRS, or else our different datasets will not align properly.
 
 WGS 84 is represented with the EPSG code 4326.
 
-For more information:
+```{r}
+wgs84  <- 4326   # WGS 84, used in GPS. https://epsg.io/4326
+```
+
+For a good explanation of CRSes:
 
 - https://www.earthdatascience.org/courses/earth-analytics/spatial-data-r/intro-to-coordinate-reference-systems/
 - https://www.earthdatascience.org/courses/earth-analytics/spatial-data-r/geographic-vs-projected-coordinate-reference-systems-UTM/
 
-```{r}
-wgs84  <- 4326   # WGS 84, used in GPS. https://epsg.io/4326
-nad83  <- 4269   # NAD 83, centered on North America. https://epsg.io/4269
-```
+## United States state geographic data
 
-## United States geographic data
+The US Census Bureau publishes shapefiles containing spatial data for different United States regions. These shapefiles are available here: https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html
 
-The US Census Bureau publishes shapefiles containing spatial data for different United States regions. A **shapefile** is a database containing data on a set of spatial features (geographic places) and their associated geometrical representations (points, lines, polygons). 
+For this demo, we will be using the file **cb_2018_us_state_20m.zip**, which contains the names and low-resolution geographic boundaries for the US states and territories.
 
-US Census Bureau shapefiles are available here: https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html
+This file was unzipped and placed in a folder called `data`. The shapefile itself uses the file extension `.shp`, but all the files in the zip archive are required in order to successfully access the data.
 
-For this demo, we will be using the file **cb_2018_us_state_20m.zip**, available on the Census Bureau website.
+### Read shapefile data as sf object
 
-### Import data as sf object
-
-In this demo, we will use the `sf` package, which creates a type of object called a **simple feature** object. This object acts much like a data frame, where every row contains data on a geographic place. In addition, each row has an associated geometry, which contains the geometric representation of that place on a map.
+We can use the sf function `st_read()` to read the data in as an sf object.
 
 ```{r}
-us_states <- st_read('data/states/cb_2018_us_state_20m.shp')
+us_states <- st_read('data/cb_2018_us_state_20m.shp')
 ```
 
-When we read the shapefile, we see that the current CRS is "NAD83", which is a projected coordinate system that centers on North America. We will convert the `us_states` data to the WGS 84 instead.
+When we read the shapefile, we see that the current CRS (+datum) is NAD83, which is a projected coordinate system that centers on North America. We will convert the `us_states` data to the WGS 84 instead.
 
 ```{r}
 us_states <- st_transform(us_states, crs = wgs84)
@@ -69,14 +78,14 @@ We can use ggplot2 to do a quick plot to see how our state data are looking. Whe
 ggplot()+ geom_sf(data = us_states)
 ```
 
-For this demo, we will focus on just the contiguous 48 states (plus Washington DC). We can simply filter our sf object as we would a normal data frame.
+For this demo, we will focus on just the contiguous 48 states. We can simply filter our sf object as we would a normal data frame.
 
 ```{r}
 non_contiguous <- c('Alaska', 'Hawaii', 'Puerto Rico')
 us_states_con48 <- filter(us_states, !(NAME %in% non_contiguous))
 ```
 
-We can take a look again to see our filtered US states data
+We can take a look again to see our filtered US states data.
 
 ```{r}
 ggplot()+ geom_sf(data = us_states_con48)
@@ -102,20 +111,25 @@ ggplot() +
 ```
 
 
-
 ## GBIF Occurrence data
 
-The data are occurrence records of yellowjackets in the United States. Data were downloaded from the Global Biodiversity Information Facility (GBIF). Dataset citation: GBIF.org (29 April 2020) GBIF Occurrence Download https://doi.org/10.15468/dl.44t6at
+Our data on yellowjacket occurrences were downloaded from the Global Biodiversity Information Facility (GBIF). Each occurrence record contains taxonomic information, occurrence type information, and a georeferenced coordinate.
+
+> Dataset citation: GBIF.org (29 April 2020) GBIF Occurrence Download https://doi.org/10.15468/dl.44t6at
 
 ### Import GBIF data
 
+We can import the GBIF data as a standard data frame. I like to use the `data.table` package (and its `fread()` function), which works really well for parsing large files. I will also filter out records where `decimalLatitude` or `decimalLongitude` were not supplied.
+
 ```{r}
-gbif <- fread('data/gbif_yellowjackets.csv') %>% # Function to read file from data.table package
+gbif <- fread('data/gbif_yellowjackets.csv') %>%
     filter(!is.na(decimalLatitude), 
            !is.na(decimalLongitude))
 ```
 
-In order to work with the data geographically, the `gbif` data frame needs to be converted to a geometric sf object. The `st_as_sf` function requires that the coordinate columns be specified (x = longitude, y = latitude). The CRS can also be specified. Most GBIF data is assumed to use the WGS 84 coordinate system.
+### Convert GBIF data to sf
+
+We next need to convert this data frame to a geospatial `sf` object. The `st_as_sf()` function requires that the coordinate columns be specified (x = longitude, y = latitude). The CRS can also be specified. Most GBIF data is assumed to use the WGS 84 coordinate system.
 
 ```{r}
 gbif_sf <- st_as_sf(gbif, 
@@ -125,9 +139,9 @@ gbif_sf <- st_as_sf(gbif,
 gbif_sf
 ```
 
-## Plot GBIF data
+### Plot GBIF data
 
-We can now plot our GBIF data. We'll use two geom_sf() calls - the first will contain our US state data, and then second will contain our GBIF data on top of it.
+We can now plot our GBIF data. We'll use two `geom_sf()` calls - the first will plot our US state data, and then second will plot our GBIF data on top of it.
 
 ```{r}
 ggplot() + 
@@ -138,9 +152,9 @@ ggplot() +
 
 We can see some data points that seem to be occurring in Alaska and Hawaii. Since we're limiting our map to the contiguous 48 states, we'd like to remove these data points. 
 
-## Filter GBIF data with US states data
+## Geospatially join sf objects to filter features
 
-We can use the `us_states_48con` sf object to filter our GBIF data, returning only the GBIF points that occur within one of the contiguous 48 states. We can do this with a function called `st_join()`, which joins the data from two sf objects according to their geometries. Here, we take each GBIF point and join the corresponding US state data. `left = FALSE` specifies that we are performing an inner join, so any point that does not find a corresponding state is removed.
+We can use the `us_states_48con` sf object to filter our GBIF data, returning only the GBIF points that occur within one of the contiguous 48 states. We can do this with a function called `st_join()`, which joins the data from two sf objects according to their geometries and retains the geometry for the first sf object. Here, we take each GBIF point and join the corresponding US state data in which it occurs. `left = FALSE` specifies that we are performing an inner join, so any point that does not find a corresponding state is removed.
 
 ```{r}
 gbif_con48 <- st_join(gbif_sf, us_states_con48, left = FALSE)
@@ -153,7 +167,7 @@ ggplot() +
     map_theme
 ```
 
-## Aesthetic mapping of GBIF data
+## Aesthetic mapping
 
 Like in any ggplot figure, we can use aesthetic mapping to provide additional information. For example, we could color our GBIF data by species of yellowjacket.
 
@@ -173,7 +187,11 @@ species_map
 
 ## Create heatmap
 
-We can also join our SF data in the opposite direction to produce heatmaps. For example, if we wanted to show the number of GBIF records per US state.
+We can also create heatmaps (or choropleth maps) of our states, coloring each state according to one of its corresponding counts. For example, we might be interested in the number of occurrences found in each state.
+
+To do this, we can again join our US state and GBIF sf objects. This time, we will join them in the reverse order, retaining the geographic information for our states and attaching GBIF data for each corresponding record. Then we can group and summarize (as we would with a normal data frame) to get the occurrence counts for each area.
+
+I created two summary columns - records (the count of records), and the square root of record count, which we can use for plotting.
 
 ```{r}
 state_records <- st_join(us_states_con48, gbif_sf) %>%
@@ -181,6 +199,8 @@ state_records <- st_join(us_states_con48, gbif_sf) %>%
     summarize(records = n(),
               records_sqrt = sqrt(records))
 ```
+
+This time when we plot our map, we will only use one `geom_sf()` call, because we only need to plot our state data. We will also call `geom_sf_text()`, which will allow us to put labels on each of our states.
 
 ```{r}
 state_heatmap <- ggplot(state_records, aes(fill = records_sqrt, label = records)) + 
@@ -194,6 +214,8 @@ state_heatmap
 ```
 
 ## Save maps as files
+
+Once we are happy with our maps, we can save them as image files with ggplot's `ggsave()`.
 
 ```{r}
 ggsave(
